@@ -84,39 +84,98 @@ const Quiz = () => {
 
   const totalQuestions = questions.length;
 
+  const loadMedia = (url) => {
+    return new Promise((resolve, reject) => {
+      if (!url) {
+        resolve();
+        return;
+      }
+      const extension = url.split('.').pop().toLowerCase();
+      if (extension === 'mp4') {
+        const video = document.createElement('video');
+        video.src = url;
+        video.addEventListener('loadeddata', () => resolve());
+        video.addEventListener('error', (err) => reject(err));
+        video.preload = 'auto';
+      } else {
+        const img = new Image();
+        img.src = url;
+        img.onload = () => resolve();
+        img.onerror = (err) => reject(err);
+      }
+    });
+  };
+
+  useEffect(() => {
+    const firstQuestion = questions[0];
+    const preloadInitial = async () => {
+      await loadMedia(firstQuestion.questionMedia).catch(() => {});
+      await loadMedia(firstQuestion.answerMedia).catch(() => {});
+    };
+    preloadInitial();
+  }, []);
+
   useEffect(() => {
     if (questionIndex >= totalQuestions) {
+      loadMedia("/resultbg.mp4").catch(() => {});
+      loadMedia("/EndingVideo.mp4").catch(() => {});
       setQuizFinished(true);
+      return;
+    }
+
+    const currentQuestion = questions[questionIndex];
+    loadMedia(currentQuestion.answerMedia).catch(() => {});
+
+    const nextQuestionIndex = questionIndex + 1;
+    if (nextQuestionIndex < totalQuestions) {
+      const nextQuestion = questions[nextQuestionIndex];
+      loadMedia(nextQuestion.questionMedia).catch(() => {});
+      loadMedia(nextQuestion.answerMedia).catch(() => {});
     }
   }, [questionIndex, totalQuestions]);
-
-  if (!quizFinished && questionIndex >= totalQuestions) {
-    return null; // or loading state while transitioning to results
-  }
 
   const handleOptionSelect = (option) => {
     setSelectedOption(option);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (selectedOption === questions[questionIndex].answer) {
-      setCorrectAnswers((prev) => prev + 1);
-      setShowMedia(true);
+      setLoadingNext(true);
+      try {
+        await loadMedia(questions[questionIndex].answerMedia);
+        setShowMedia(true);
+        setCorrectAnswers((prev) => prev + 1);
+      } finally {
+        setLoadingNext(false);
+      }
     } else {
-      setWrongAnswers((prev) => [...prev, { question: questions[questionIndex].question, chosen: selectedOption, correct: questions[questionIndex].answer }]);
+      setWrongAnswers((prev) => [
+        ...prev,
+        {
+          question: questions[questionIndex].question,
+          chosen: selectedOption,
+          correct: questions[questionIndex].answer
+        }
+      ]);
       setQuestionIndex((prev) => prev + 1);
       setSelectedOption(null);
     }
   };
 
-  const handleNext = () => {
-    setLoadingNext(true); // Start transition effect
-    setTimeout(() => {
-      setQuestionIndex((prev) => prev + 1);
-      setShowMedia(false);
-      setSelectedOption(null);
-      setLoadingNext(false); // End transition effect
-    }, 300); // Adjust delay as needed
+  const handleNext = async () => {
+    setLoadingNext(true);
+    const nextQuestionIndex = questionIndex + 1;
+    
+    if (nextQuestionIndex < totalQuestions) {
+      const nextQuestion = questions[nextQuestionIndex];
+      await loadMedia(nextQuestion.questionMedia).catch(() => {});
+      await loadMedia(nextQuestion.answerMedia).catch(() => {});
+    }
+
+    setQuestionIndex((prev) => prev + 1);
+    setShowMedia(false);
+    setSelectedOption(null);
+    setLoadingNext(false);
   };
 
   const restartQuiz = () => {
@@ -128,18 +187,20 @@ const Quiz = () => {
     setQuizFinished(false);
   };
 
-  const getMediaComponent = (mediaPath) => {
-    const extension = mediaPath.split(".").pop().toLowerCase();
-    if (extension === "mp4") {
-      return <video src={mediaPath} controls className="w-full max-w-md rounded-lg mb-6" autoPlay />;
-    }
-    return <img src={mediaPath} alt="Media content" className="w-full max-w-md rounded-lg mb-6" />;
-  };
+  const getMediaComponent = (mediaPath) => (
+    <div className="flex justify-center w-full">
+      <img 
+        src={mediaPath} 
+        alt="Question content" 
+        className="max-w-md rounded-lg mb-6"
+        loading="eager"
+      />
+    </div>
+  );
 
-  if (quizFinished) {
+  if (quizFinished || questionIndex >= totalQuestions) {
     return (
       <div className="relative min-h-screen w-full overflow-hidden">
-        {/* Conditional Background Video */}
         <video 
           autoPlay
           muted
@@ -147,16 +208,20 @@ const Quiz = () => {
           playsInline
           className="fixed top-0 left-0 w-full h-full object-cover z-0"
         >
-          <source src={quizFinished ? "/resultbg.mp4" : "/quizbg.mp4"} type="video/mp4" />
+          <source src="/resultbg.mp4" type="video/mp4" />
           Your browser does not support the video tag.
         </video>
 
-        {/* Content Overlay */}
         <div className="relative z-10 flex flex-col items-center justify-center min-h-screen p-4 text-center text-white">
           {correctAnswers === totalQuestions ? (
             <div className="text-center">
               <h1 className="text-3xl font-bold mb-4 drop-shadow-lg">Will you be my Valentine? ❤️🥺🥰</h1>
-              <video src="/EndingVideo.mp4" controls className="w-full max-w-md rounded-lg mb-6 mx-auto" />
+              <video 
+                src="/EndingVideo.mp4" 
+                controls 
+                className="w-full max-w-md rounded-lg mb-6 mx-auto"
+                preload="auto"
+              />
             </div>
           ) : (
             <div className="text-center bg-black/30 p-8 rounded-xl backdrop-blur-sm">
@@ -182,6 +247,9 @@ const Quiz = () => {
     );
   }
 
+  const currentQuestion = questions[questionIndex];
+  if (!currentQuestion) return null;
+
   return (
     <div className="relative min-h-screen w-full overflow-hidden">
       <video 
@@ -190,14 +258,14 @@ const Quiz = () => {
         loop
         className="fixed top-0 left-0 w-full h-full object-cover z-0"
       >
-        <source src={quizFinished ? "/resultbg.mp4" : "/quizbg.mp4"} type="video/mp4" />
+        <source src="/quizbg.mp4" type="video/mp4" />
       </video>
 
       <div className="relative z-10 flex flex-col items-center justify-center min-h-screen p-4 text-center text-white">
         {showMedia ? (
           <div className="text-center bg-black/10 p-8 rounded-xl backdrop-blur-sm">
             <h1 className="text-2xl font-bold mb-4 drop-shadow">You answered right!</h1>
-            {getMediaComponent(questions[questionIndex]?.answerMedia)} {/* Added optional chaining */}
+            {getMediaComponent(currentQuestion.answerMedia)}
             <button 
               onClick={handleNext} 
               className="mt-2 px-6 py-2 bg-red-500/90 text-white rounded-lg hover:bg-red-600 transition-all"
@@ -206,39 +274,47 @@ const Quiz = () => {
             </button>
           </div>
         ) : (
-          <div className={`transition-opacity duration-300 ${loadingNext ? "opacity-0" : "opacity-100"}`}>
-            <h1 className="text-2xl font-bold mb-4 drop-shadow-lg">
-              {questions[questionIndex]?.question}
-            </h1>
-            {questions[questionIndex]?.questionMedia && getMediaComponent(questions[questionIndex].questionMedia)}
-            
-            <div className="grid grid-cols-2 gap-4">
-              {questions[questionIndex]?.options.map((option) => (
-                <button
-                  key={option}
-                  onClick={() => handleOptionSelect(option)}
-                  className={`px-6 py-2 rounded-lg transition-all ${
-                    selectedOption === option 
-                      ? 'bg-green-700/90' 
-                      : 'bg-green-500/70 hover:bg-green-600/90'
-                  }`}
-                >
-                  {option}
-                </button>
-              ))}
+          <div className="relative w-full max-w-2xl">
+            {loadingNext && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-20 rounded-xl">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+              </div>
+            )}
+            <div className={`transition-opacity duration-300 ${loadingNext ? "opacity-50" : "opacity-100"}`}>
+              <h1 className="text-2xl font-bold mb-4 drop-shadow-lg">
+                {currentQuestion.question}
+              </h1>
+              {currentQuestion.questionMedia && 
+                getMediaComponent(currentQuestion.questionMedia)}
+              
+              <div className="grid grid-cols-2 gap-4">
+                {currentQuestion.options.map((option) => (
+                  <button
+                    key={option}
+                    onClick={() => handleOptionSelect(option)}
+                    className={`px-6 py-2 rounded-lg transition-all ${
+                      selectedOption === option 
+                        ? 'bg-green-700/90' 
+                        : 'bg-green-500/70 hover:bg-green-600/90'
+                    }`}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+              
+              <button
+                onClick={handleSubmit}
+                disabled={!selectedOption}
+                className={`mt-4 px-6 py-2 ${
+                  selectedOption 
+                    ? 'bg-red-500/90 hover:bg-red-600' 
+                    : 'bg-gray-400/50 cursor-not-allowed'
+                } text-white rounded-lg transition-all`}
+              >
+                Submit Answer
+              </button>
             </div>
-            
-            <button
-              onClick={handleSubmit}
-              disabled={!selectedOption}
-              className={`mt-4 px-6 py-2 ${
-                selectedOption 
-                  ? 'bg-red-500/90 hover:bg-red-600' 
-                  : 'bg-gray-400/50 cursor-not-allowed'
-              } text-white rounded-lg transition-all`}
-            >
-              Submit Answer
-            </button>
           </div>
         )}
       </div>
