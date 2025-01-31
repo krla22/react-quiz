@@ -188,11 +188,11 @@ const Quiz = () => {
   };
 
   const getMediaComponent = (mediaPath) => (
-    <div className="flex justify-center w-full">
+    <div className="flex justify-center w-full px-10">
       <img 
         src={mediaPath} 
         alt="Question content" 
-        className="max-w-md rounded-lg mb-6"
+        className="w-full max-w-md rounded-lg mb-6"
         loading="eager"
       />
     </div>
