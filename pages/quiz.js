@@ -7,6 +7,7 @@ const Quiz = () => {
   const [correctAnswers, setCorrectAnswers] = useState(0);
   const [wrongAnswers, setWrongAnswers] = useState([]);
   const [quizFinished, setQuizFinished] = useState(false);
+  const [loadingNext, setLoadingNext] = useState(false);
 
   const questions = [
     {
@@ -109,13 +110,13 @@ const Quiz = () => {
   };
 
   const handleNext = () => {
-    if (questionIndex < totalQuestions - 1) {
+    setLoadingNext(true); // Start transition effect
+    setTimeout(() => {
       setQuestionIndex((prev) => prev + 1);
       setShowMedia(false);
       setSelectedOption(null);
-    } else {
-      setQuizFinished(true);
-    }
+      setLoadingNext(false); // End transition effect
+    }, 300); // Adjust delay as needed
   };
 
   const restartQuiz = () => {
@@ -205,13 +206,11 @@ const Quiz = () => {
             </button>
           </div>
         ) : (
-          <div className="p-8 rounded-xl backdrop-blur-sm">
-            {/* Added optional chaining for all question properties */}
+          <div className={`transition-opacity duration-300 ${loadingNext ? "opacity-0" : "opacity-100"}`}>
             <h1 className="text-2xl font-bold mb-4 drop-shadow-lg">
               {questions[questionIndex]?.question}
             </h1>
-            {questions[questionIndex]?.questionMedia && 
-              getMediaComponent(questions[questionIndex].questionMedia)}
+            {questions[questionIndex]?.questionMedia && getMediaComponent(questions[questionIndex].questionMedia)}
             
             <div className="grid grid-cols-2 gap-4">
               {questions[questionIndex]?.options.map((option) => (
